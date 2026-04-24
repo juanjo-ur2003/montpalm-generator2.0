@@ -85,10 +85,38 @@ function docxToPdf(docxBuffer) {
   });
 }
 
+// ── Diagnóstico LibreOffice ────────────────────────────────────────────────────
+const { execSync } = require('child_process');
+
+function checkLibreOffice() {
+  const candidates = ['soffice', 'libreoffice'];
+  for (const bin of candidates) {
+    try {
+      const out = execSync(`${bin} --version 2>&1`, { timeout: 10000 }).toString().trim();
+      return { ok: true, bin, version: out };
+    } catch (_) {}
+  }
+  // También buscar en rutas Nix comunes
+  try {
+    const which = execSync('which soffice || which libreoffice || find /nix -name soffice -type f 2>/dev/null | head -1', { timeout: 5000 }).toString().trim();
+    return { ok: false, bin: SOFFICE, which };
+  } catch (e) {
+    return { ok: false, bin: SOFFICE, error: e.message };
+  }
+}
+
 // ── Servidor ───────────────────────────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
   const urlPath = req.url.split('?')[0];
+
+  // ── GET /health → diagnóstico LibreOffice ──────────────────────────────────
+  if (req.method === 'GET' && urlPath === '/health') {
+    const info = checkLibreOffice();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ soffice_path: SOFFICE, libreoffice: info }, null, 2));
+    return;
+  }
 
   // ── POST /generate → devuelve .docx ────────────────────────────────────────
   if (req.method === 'POST' && urlPath === '/generate') {
