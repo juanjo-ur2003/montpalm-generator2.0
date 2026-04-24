@@ -121,7 +121,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── GET → sirve archivos HTML estáticos ────────────────────────────────────
-  const url      = urlPath === '/' ? '/investors.html' : urlPath;
+  const url      = urlPath === '/' ? '/index.html' : urlPath;
   const filename = url.replace(/^\//, '');
 
   if (!filename.endsWith('.html')) {
