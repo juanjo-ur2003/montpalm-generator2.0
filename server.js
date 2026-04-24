@@ -9,10 +9,7 @@ const { generateResumenEjecutivo } = require('./docGenerator');
 const PORT = process.env.PORT || 8080;
 
 // Ruta al binario de LibreOffice según entorno
-// En Railway/Nixpacks: 'libreoffice' (en PATH)
-// En Mac local con Homebrew Cask: ruta absoluta
 function getSofficePath() {
-  // Rutas absolutas primero (Mac local), luego nombre en PATH (Railway/Linux)
   const absolute = [
     '/opt/homebrew/Caskroom/libreoffice/26.2.2/LibreOffice.app/Contents/MacOS/soffice', // Mac ARM Homebrew
     '/Applications/LibreOffice.app/Contents/MacOS/soffice',                             // Mac instalación directa
@@ -20,7 +17,8 @@ function getSofficePath() {
   for (const p of absolute) {
     if (fs.existsSync(p)) return p;
   }
-  return 'libreoffice'; // Railway / Linux: disponible en PATH
+  // Railway/Linux: intentar 'soffice' primero (nombre Nix), luego 'libreoffice'
+  return 'soffice';
 }
 const SOFFICE = getSofficePath();
 
@@ -48,15 +46,28 @@ function docxToPdf(docxBuffer) {
 
     fs.writeFileSync(docxPath, docxBuffer);
 
+    // Directorio de perfil temporal para entornos containerizados (Railway/Docker)
+    const profileDir = path.join(os.tmpdir(), `lo_profile_${Date.now()}`);
+
     execFile(
       SOFFICE,
-      ['--headless', '--convert-to', 'pdf', '--outdir', outDir, docxPath],
-      { timeout: 30000 },
+      [
+        `-env:UserInstallation=file://${profileDir}`,
+        '--headless',
+        '--norestore',
+        '--convert-to', 'pdf',
+        '--outdir', outDir,
+        docxPath,
+      ],
+      { timeout: 60000 },
       (err, stdout, stderr) => {
-        // Limpiar el .docx temporal siempre
+        // Limpiar el .docx temporal y el perfil siempre
         try { fs.unlinkSync(docxPath); } catch (_) {}
+        try { fs.rmSync(profileDir, { recursive: true, force: true }); } catch (_) {}
 
         if (err) {
+          console.error('[LibreOffice stderr]', stderr);
+          console.error('[LibreOffice err]', err.message);
           return reject(new Error('LibreOffice error: ' + (stderr || err.message)));
         }
 
