@@ -17,8 +17,8 @@ function getSofficePath() {
   for (const p of absolute) {
     if (fs.existsSync(p)) return p;
   }
-  // Railway/Linux: intentar 'soffice' primero (nombre Nix), luego 'libreoffice'
-  return 'soffice';
+  // Railway/Linux (Dockerfile con apt-get): 'libreoffice' en PATH
+  return 'libreoffice';
 }
 const SOFFICE = getSofficePath();
 
