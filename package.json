@@ -1,0 +1,12 @@
+{
+  "name": "montpalm-generator",
+  "version": "2.0.0",
+  "description": "Montpalm Capital Partners — Generador de Resúmenes Ejecutivos",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "docx": "^8.5.0"
+  }
+}

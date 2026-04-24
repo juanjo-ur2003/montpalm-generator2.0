@@ -1,0 +1,13 @@
+[phases.setup]
+nixPkgs = [
+  "nodejs_20",
+  "libreoffice",
+  "liberation_ttf",
+  "fontconfig",
+]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[start]
+cmd = "node server.js"
