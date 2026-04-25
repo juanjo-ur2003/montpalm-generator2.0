@@ -117,27 +117,62 @@ function generateResumenEjecutivo(data) {
     mercado = "Prime",
     calle = "",
     numero_via = "",
-    descripcion = "[Descripción del activo]",
+    codigo_postal = "",
+    descripcion = "",
     superficie = "",
     ref_catastral = "",
     num_unidades = "",
+    num_unidades_residenciales = "",
+    num_habitaciones = "",
+    superficie_util = "",
+    altura_libre = "",
+    num_locales_comerciales = "",
+    planta = "",
+    num_plantas_totales = "",
+    num_plantas_local = "",
+    anio_construccion = "",
+    uso_urbanistico = "",
+    tipo_uso = "",
+    edificabilidad = "",
+    ocupacion = "",
     uso = "",
     estado = "",
     renta_anual = "",
+    renta_mensual = "",
+    revpar = "",
     rentabilidad_bruta = "",
     rentabilidad_neta = "",
     precio_m2 = "",
+    precio_habitacion = "",
+    precio_m2_suelo = "",
+    precio_m2t = "",
     precio_venta = "",
-    honorarios = "",
-    foto1 = "",   // base64 string
+    foto1 = "",
     foto2 = "",
     foto3 = "",
-    mapa = "",    // base64 string
+    mapa = "",
   } = data;
 
-  // Combine street fields into full address
+  // Formateo numérico español sin depender de ICU (funciona en Node slim)
+  // 1234567   → "1.234.567"
+  // 1234.56   → "1.234,56"
+  function fmtInt(n) {
+    if (n === "" || n === null || n === undefined) return "";
+    return String(Math.round(Number(n))).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  }
+  function fmtDec(n, dec = 2) {
+    if (n === "" || n === null || n === undefined) return "";
+    const fixed = Number(n).toFixed(dec);          // "1234.56"
+    const [int, frac] = fixed.split(".");
+    const intFmt = int.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return intFmt + "," + frac;
+  }
+
+  // Dirección con código postal
   const direccion = calle
-    ? (numero_via ? `${calle}, ${numero_via}` : calle)
+    ? (calle
+        + (numero_via   ? ", " + numero_via   : "")
+        + (codigo_postal ? ", " + codigo_postal : ""))
     : "[DIRECCIÓN COMPLETA]";
 
   // Helper: create image cell if photo provided, else placeholder
@@ -283,14 +318,42 @@ function generateResumenEjecutivo(data) {
                 new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { before: 0, after: 120 },
                   children: [new TextRun({ text: descripcion, font: "Georgia", size: 24, color: BLACK })] }),
                 space(80),
-                // Bullet points
-                ...[
-                  superficie ? `Superficie construida: ${superficie}` : null,
-                  ref_catastral ? `Referencia catastral: ${ref_catastral}` : null,
-                  num_unidades ? `Unidades en el activo: ${num_unidades}` : null,
-                  uso ? `Tipo de uso: ${uso}` : null,
-                  estado ? `Estado del activo: ${estado}` : null,
-                ].filter(Boolean).map(item =>
+                // Bullet points dinámicos según tipo de activo
+                ...((() => {
+                  const t = (tipo_activo || "").toUpperCase();
+                  const sup = superficie ? `Superficie construida: ${fmtInt(superficie)} m²` : null;
+                  const ref = ref_catastral ? `Referencia catastral: ${ref_catastral}` : null;
+                  const est = estado ? `Estado del activo: ${estado}` : null;
+                  const ocu = ocupacion ? `Ocupación: ${fmtDec(ocupacion, 1)}%` : null;
+
+                  let extra = [];
+                  if (t === "EDIFICIO RESIDENCIAL") {
+                    if (num_unidades) extra.push(`Nº de unidades: ${fmtInt(num_unidades)}`);
+                  } else if (t === "EDIFICIO MIXTO") {
+                    if (num_unidades_residenciales) extra.push(`Unidades residenciales: ${fmtInt(num_unidades_residenciales)}`);
+                    if (num_locales_comerciales) extra.push(`Locales comerciales: ${fmtInt(num_locales_comerciales)}`);
+                  } else if (t === "PISOS") {
+                    if (num_habitaciones) extra.push(`Nº de habitaciones: ${fmtInt(num_habitaciones)}`);
+                    if (planta) extra.push(`Planta: ${planta}`);
+                  } else if (t === "OFICINAS") {
+                    if (superficie_util) extra.push(`Superficie útil: ${fmtInt(superficie_util)} m²`);
+                    if (num_plantas_totales) extra.push(`Nº de plantas: ${fmtInt(num_plantas_totales)}`);
+                  } else if (t === "LOCAL COMERCIAL") {
+                    if (altura_libre) extra.push(`Altura libre: ${fmtDec(altura_libre, 2)} m`);
+                    if (num_plantas_local) extra.push(`Nº de plantas: ${fmtInt(num_plantas_local)}`);
+                  } else if (t === "HOTEL") {
+                    if (num_habitaciones) extra.push(`Nº de habitaciones: ${fmtInt(num_habitaciones)}`);
+                    if (anio_construccion) extra.push(`Año de construcción: ${anio_construccion}`);
+                  } else if (t === "SUELO") {
+                    if (edificabilidad) extra.push(`Edificabilidad: ${fmtInt(edificabilidad)} m²`);
+                    if (uso_urbanistico) extra.push(`Uso urbanístico: ${uso_urbanistico}`);
+                  } else if (t === "OTRO") {
+                    if (num_unidades) extra.push(`Nº de unidades: ${fmtInt(num_unidades)}`);
+                    if (tipo_uso) extra.push(`Tipo de uso: ${tipo_uso}`);
+                  }
+
+                  return [sup, ref, ...extra, ocu, est].filter(Boolean);
+                })()).map(item =>
                   new Paragraph({
                     spacing: { before: 40, after: 60 },
                     indent: { left: 400, hanging: 300 },
@@ -305,18 +368,35 @@ function generateResumenEjecutivo(data) {
                 space(80),
                 new Table({
                   width: { size: LEFT_W, type: WidthType.DXA }, columnWidths: [LEFT_W], borders: noBorders,
-                  rows: [
-                    ecoRow("Renta anual bruta:", renta_anual ? `${renta_anual} €` : "[€]", false),
-                    ecoRow("Rentabilidad bruta:", rentabilidad_bruta ? `${rentabilidad_bruta}%` : "[%]", true),
-                    ecoRow("Rentabilidad neta:", rentabilidad_neta ? `${rentabilidad_neta}%` : "[%]", false),
-                    ecoRow("Precio por m²:", precio_m2 ? `${precio_m2} €/m²` : "[€/m²]", true),
-                    ecoRow("Precio estimado de venta:", precio_venta ? `${precio_venta} €` : "[€]", false, true),
-                  ]
+                  rows: (() => {
+                    const t = (tipo_activo || "").toUpperCase();
+                    const rows = [];
+                    // Renta: label y valor según tipo
+                    if (t === "HOTEL") {
+                      rows.push(ecoRow("RevPAR:", revpar ? `${fmtInt(revpar)} €` : "—", false));
+                    } else if (t === "PISOS" || t === "LOCAL COMERCIAL" || t === "OFICINAS") {
+                      rows.push(ecoRow("Renta mensual:", renta_mensual ? `${fmtInt(renta_mensual)} €` : "—", false));
+                    } else {
+                      rows.push(ecoRow("Renta anual bruta:", renta_anual ? `${fmtInt(renta_anual)} €` : "—", false));
+                    }
+                    // Rentabilidades (no para Suelo ni Hotel)
+                    if (t !== "SUELO") {
+                      rows.push(ecoRow("Rentabilidad bruta:", rentabilidad_bruta ? `${fmtDec(rentabilidad_bruta, 2)}%` : "—", true));
+                      rows.push(ecoRow("Rentabilidad neta:", rentabilidad_neta ? `${fmtDec(rentabilidad_neta, 2)}%` : "—", false));
+                    }
+                    // Precio por m² / habitación / suelo
+                    if (t === "HOTEL") {
+                      rows.push(ecoRow("Precio por habitación:", precio_habitacion ? `${fmtInt(precio_habitacion)} €` : "—", true));
+                    } else if (t === "SUELO") {
+                      rows.push(ecoRow("Precio por m² suelo:", precio_m2_suelo ? `${fmtInt(precio_m2_suelo)} €/m²` : "—", true));
+                      rows.push(ecoRow("Precio por m²t:", precio_m2t ? `${fmtInt(precio_m2t)} €/m²t` : "—", false));
+                    } else {
+                      rows.push(ecoRow("Precio por m²:", precio_m2 ? `${fmtInt(precio_m2)} €/m²` : "—", true));
+                    }
+                    rows.push(ecoRow("Precio estimado de venta:", precio_venta ? `${fmtInt(precio_venta)} €` : "—", t === "SUELO" ? true : false, true));
+                    return rows;
+                  })()
                 }),
-                space(100),
-                new Paragraph({ spacing: { before: 0, after: 0 }, children: [
-                  new TextRun({ text: `* Honorarios Montpalm Capital Partners: ${honorarios || "[X]"}% a cargo de la parte compradora`, font: "Georgia", size: 16, color: GRAY_TXT, italics: true })
-                ]}),
               ]
             }),
 
